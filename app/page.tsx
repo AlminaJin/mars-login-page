@@ -25,6 +25,51 @@ function Brand({ inverse = false }: { inverse?: boolean }) {
   );
 }
 
+const applications = [
+  { id: "risk", name: "MARS Risk Report", category: "RISK", description: "Review portfolio risk and exposure.", mark: "△", tone: "indigo" },
+  { id: "market", name: "MARS Market Data", category: "MARKET DATA", description: "Explore live and reference market data.", mark: "⌁", tone: "green" },
+  { id: "pricer", name: "MARS Pricer", category: "PRICER", description: "Price trades and run scenarios.", mark: "$", tone: "blue" },
+  { id: "compression", name: "MARS Compression", category: "COMPRESSION", description: "Optimize and reduce portfolio notional.", mark: "↗", tone: "amber" },
+  { id: "beacon", name: "MARS Beacon", category: "BEACON", description: "Monitor alerts and operational events.", mark: "", tone: "coral", icon: "/beacon-coral-sun.svg" },
+  { id: "files", name: "MARS File Space", category: "FILE SPACE", description: "Access reports, files, and shared documents.", mark: "▤", tone: "violet" },
+];
+
+function AppCard({ app, favorite, onToggle }: { app: typeof applications[number]; favorite: boolean; onToggle: () => void }) {
+  return <article className="app-card">
+    <button className="favorite-button" type="button" aria-label={`${favorite ? "Remove" : "Add"} ${app.name} ${favorite ? "from" : "to"} favorites`} aria-pressed={favorite} onClick={onToggle}>{favorite ? "★" : "☆"}</button>
+    <div className={`app-mark logo-preview ${app.id === "beacon" ? "beacon-mark" : "generated-mark"}`}><img src={app.icon ?? `/mars-${app.id}-logo.png`} alt="" /></div>
+    <div className="app-card-copy">
+      <h3>{app.name}</h3>
+      <p>{app.description}</p>
+    </div>
+  </article>;
+}
+
+function Launchpad({ appearance, onAppearanceChange, onSignOut }: { appearance: "light" | "night"; onAppearanceChange: () => void; onSignOut: () => void }) {
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const favoriteApps = applications.filter((app) => favorites.includes(app.id));
+  const toggleFavorite = (id: string) => setFavorites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  return <main className={`launchpad theme-${appearance}`}>
+    <div className="launchpad-shade" aria-hidden="true" />
+    <header className="launchpad-header">
+      <div className="launchpad-identity"><Brand inverse /><span>COMMAND DECK</span></div>
+      <div className="launchpad-welcome"><small>Welcome back</small><strong>jinbailiu@maybank.com</strong></div>
+      <div className="launchpad-actions"><button type="button">⌖ SG · Singapore</button><button type="button" onClick={onAppearanceChange}>{appearance === "night" ? "☾ Night" : "☼ Light"}</button><button type="button" onClick={onSignOut}>Sign out</button></div>
+    </header>
+    <div className="launchpad-content">
+      {favoriteApps.length ? <section className="app-section favorites-section">
+        <div className="section-heading"><span>★</span><h2>Your favorites</h2><b>{favoriteApps.length} apps</b></div>
+        <div className="app-grid favorite-grid">{favoriteApps.map((app) => <AppCard key={app.id} app={app} favorite onToggle={() => toggleFavorite(app.id)} />)}</div>
+      </section> : <div className="favorites-hint"><span>☆</span><p><strong>Build your shortcuts.</strong> Star any workspace to keep it here.</p></div>}
+      <section className="app-section all-workspaces">
+        <div className="section-heading"><span>⌘</span><h2>All workspaces</h2><b>{applications.length} apps</b></div>
+        <div className="app-grid">{applications.map((app) => <AppCard key={app.id} app={app} favorite={favorites.includes(app.id)} onToggle={() => toggleFavorite(app.id)} />)}</div>
+      </section>
+    </div>
+    <footer className="launchpad-footer">MARS PLATFORM · INTERNAL USE ONLY · MODERN FINANCIAL FRONT OFFICE SYSTEM</footer>
+  </main>;
+}
+
 function LoginForm({ glass = false, onSuccess, success = false }: { glass?: boolean; onSuccess?: () => void; success?: boolean }) {
   const [method, setMethod] = useState<"email" | "magic">("email");
   return (
@@ -50,14 +95,23 @@ function LoginForm({ glass = false, onSuccess, success = false }: { glass?: bool
 
 function IndustrialConcept() {
   const [appearance, setAppearance] = useState<"light" | "night">("light");
-  const [authStage, setAuthStage] = useState<"idle" | "launching" | "complete">("idle");
+  const [authStage, setAuthStage] = useState<"idle" | "launching" | "launchpad">("idle");
   const isNight = appearance === "night";
   useEffect(() => {
     if (authStage !== "launching") return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => setAuthStage("complete"), reducedMotion ? 250 : 3400);
+    const timer = window.setTimeout(() => setAuthStage("launchpad"), reducedMotion ? 250 : 2100);
     return () => window.clearTimeout(timer);
   }, [authStage]);
+  useEffect(() => {
+    if (authStage !== "launching") return;
+    const skip = (event: KeyboardEvent) => {
+      if (["Escape", "Enter", " "].includes(event.key)) setAuthStage("launchpad");
+    };
+    window.addEventListener("keydown", skip);
+    return () => window.removeEventListener("keydown", skip);
+  }, [authStage]);
+  if (authStage === "launchpad") return <Launchpad appearance={appearance} onAppearanceChange={() => setAppearance(isNight ? "light" : "night")} onSignOut={() => setAuthStage("idle")} />;
   return (
     <main className={`login-shell industrial-concept theme-${appearance} ${authStage !== "idle" ? "auth-running" : ""}`}>
       <section className="launch-scene" aria-label="Industrial illustrated launch and landing sequence">
@@ -71,7 +125,7 @@ function IndustrialConcept() {
         </header>
         <LoginForm success={authStage !== "idle"} onSuccess={() => authStage === "idle" && setAuthStage("launching")} />
       </section>
-      {authStage !== "idle" && <section className={`auth-transition ${authStage}`} aria-live="polite" aria-label="Login successful, launch authorized">
+      {authStage === "launching" && <section className="auth-transition launching" aria-live="polite" aria-label="Login successful, launch authorized">
         <div className="auth-shade" />
         <div className="auth-sequence-copy">
           <span>IDENTITY VERIFIED</span>
@@ -82,15 +136,7 @@ function IndustrialConcept() {
           <img className="success-tower" src="/mars-launch-assembly-trimmed.webp" alt="" />
           <div className="success-rocket"><img src="/mars-industrial-booster-pointed.webp" alt="" /><b /><em /></div>
         </div>
-        <div className="success-complete">
-          <div className="welcome-brand" aria-label="MARS">
-            <img src="/mars-logo.svg" alt="MARS rocket logo" />
-            <span>MARS</span>
-          </div>
-          <p>Authentication complete</p>
-          <h2>Welcome to MARS</h2>
-          <button type="button" onClick={() => setAuthStage("idle")}>Replay transition</button>
-        </div>
+        <button className="skip-transition" type="button" onClick={() => setAuthStage("launchpad")}>Skip animation →</button>
       </section>}
     </main>
   );
